@@ -2,6 +2,7 @@
 (function () {
   Keys.init();
   const canvas = document.getElementById('game');
+  Mouse.init(canvas);
   const ctx = canvas.getContext('2d');
   const game = new Game();
 
@@ -22,6 +23,7 @@
     if (!game._frozen) game.update(dt);
     renderGame(ctx, game);
     Keys.endFrame();
+    Mouse.endFrame();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

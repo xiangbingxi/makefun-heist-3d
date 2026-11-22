@@ -18,6 +18,68 @@ function shade(hex, f) {
   return 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
+// Rounded-rect path (avoids ctx.roundRect, which older Chromium lacks).
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Wall-mounted security camera (iteration 15): a bracket on the north
+// wall with a lens barrel that swings with the vision cone, and a status
+// LED that reads at a glance — green = powered and watching, red = it has
+// spotted you, dark = blacked out by the terminal (3s). The barrel points
+// along the cone's screen direction, so the lens and the cone always agree.
+function drawCamera(ctx, game, cam) {
+  const p = isoProject(cam.x, cam.y);
+  const off = game.camerasOff > 0;
+  const led = off ? 'off' : cam.seen ? 'red' : 'green';
+  // Screen direction of the cone: the barrel points the same way.
+  const d = isoDir(Math.cos(cam.angle), Math.sin(cam.angle));
+  const dl = Math.hypot(d.x, d.y) || 1;
+  const ux = d.x / dl, uy = d.y / dl;
+  const cx = p.x, cy = p.y - 30; // housing centre, up on the wall face
+  const body = off ? '#3a3f47' : '#23272e';
+  const rim = off ? '#54595f' : '#6a7078';
+  // Wall bracket: short stem from the wall face up to the housing.
+  ctx.strokeStyle = off ? '#4a4f55' : '#5a6068';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y - 6);
+  ctx.lineTo(cx, cy + 6);
+  ctx.stroke();
+  // Housing: capsule along the cone direction, lens at the front end.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.atan2(uy, ux));
+  ctx.fillStyle = body;
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = 1.5;
+  rr(ctx, -11, -5, 22, 10, 5);
+  ctx.fill();
+  ctx.stroke();
+  // Lens glass at the front (+x) end.
+  ctx.fillStyle = off ? '#20242a' : '#101418';
+  ctx.beginPath(); ctx.arc(9, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = off ? '#2c3138' : '#3fa9ff';
+  ctx.beginPath(); ctx.arc(9, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // Status LED on top of the housing.
+  const ledColor = led === 'green' ? '#50ff8c' : led === 'red' ? '#ff2e2e' : '#3a3f45';
+  ctx.fillStyle = ledColor;
+  ctx.beginPath(); ctx.arc(cx, cy - 9, 3, 0, Math.PI * 2); ctx.fill();
+  if (led === 'red') {
+    // Hot ring so "spotted" is unmistakable even at a glance.
+    ctx.strokeStyle = 'rgba(255,46,46,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy - 9, 5.5, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
 // Deterministic 0..1 pseudo-random from an integer seed (stable across runs).
 function pseudoRand(i) {
   const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
@@ -485,6 +547,12 @@ function renderGame(ctx, game) {
   }
   items.push({ depth: L.target.x + L.target.y, draw: () => drawTarget(ctx, game) });
   items.push({ depth: L.terminal.x + L.terminal.y, draw: () => drawTerminal(ctx, game) });
+  // Cameras (iteration 15): wall-mounted bodies on the north wall, drawn
+  // as depth items like the terminal panel, so a guard walking past
+  // covers them correctly. Depth is the wall point under the camera.
+  for (const cam of game.cameras) {
+    items.push({ depth: cam.x + cam.y, draw: () => drawCamera(ctx, game, cam) });
+  }
   // Exit architecture (iteration 11): a door in the wall or the skylight
   // in the north wall. Depth is the wall point under the exit, same
   // convention as the terminal panel, so it paints on the wall face.
@@ -515,6 +583,31 @@ function renderGame(ctx, game) {
   }
   items.sort((a, b) => a.depth - b.depth);
   for (const it of items) it.draw();
+  // Mouse-aim landing marker (iteration 15): where the next coin will
+  // land — 130px from the player, toward the cursor. Gold ring + centre
+  // dot on the floor, with a faint dashed guide line from the player, so
+  // the landing spot reads at a glance. Only while playing with coins left.
+  if (game.state === 'playing' && game.aim && game.coins > 0) {
+    const ap = isoProject(game.aim.x, game.aim.y);
+    const pp = isoProject(game.player.x, game.player.y);
+    ctx.strokeStyle = 'rgba(255,210,74,0.45)';
+    ctx.setLineDash([4, 6]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pp.x, pp.y - 4);
+    ctx.lineTo(ap.x, ap.y - 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#ffd24a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(ap.x, ap.y - 4, 13, 6.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd24a';
+    ctx.beginPath();
+    ctx.arc(ap.x, ap.y - 4, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
   // HIDDEN tag above the wardrobe while tucked inside.
   if (game.hidden) {
     const h = game.nearHide();
@@ -1387,7 +1480,7 @@ function renderHud(ctx, game) {
   ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('WASD move · Shift sneak · E crack / terminal / hide · Q coin · F smoke · P pause · M mute', 16, 700);
+  ctx.fillText('WASD move · Shift sneak · E crack / terminal / hide · Q coin · click: aim + toss · F smoke · P pause · M mute', 16, 700);
   // Bottom-right status.
   ctx.textAlign = 'right';
   let status = 'COINS ' + game.coins + ' · SMOKE ' + game.smokes;

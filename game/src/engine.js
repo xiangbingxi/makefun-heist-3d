@@ -81,6 +81,7 @@ class Game {
     this.lootValue = 0;
     this.keycardTaken = !L.keycard;
     this.thrownCoins = [];
+    this.aim = null; // mouse-aim landing point (world coords), or null
     this.smokeClouds = [];
     this.guards = L.guards.map((g, i) => ({
       wp: g.wp, wpi: 0, x: g.wp[0][0], y: g.wp[0][1],
@@ -171,6 +172,58 @@ class Game {
   }
 
   laserOn(l) { return (this.levelTime % l.period) < l.on; }
+
+  // Invert the isometric projection: a screen point on the canvas back
+  // to the floor point under the cursor. isoProject is
+  //   sx = ox + (x - y) * s,  sy = oy + (x + y) * sy
+  // so with u = (sx - ox) / s = x - y and v = (sy - oy) / sy = x + y,
+  // x = (u + v) / 2 and y = (v - u) / 2.
+  screenToWorld(sx, sy) {
+    const u = (sx - ISO.ox) / ISO.s;
+    const v = (sy - ISO.oy) / ISO.sy;
+    return { x: (u + v) / 2, y: (v - u) / 2 };
+  }
+
+  // Mouse aim (iteration 15): the coin always flies 130px — the same
+  // distance as Q. The landing point is 130px from the player, in the
+  // direction of the mouse cursor on the floor. Null when the mouse has
+  // never been over the canvas, or sits on top of the player.
+  mouseAimPoint() {
+    if (!Mouse.over) return null;
+    const w = this.screenToWorld(Mouse.x, Mouse.y);
+    const dx = w.x - this.player.x, dy = w.y - this.player.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 4) return null;
+    return {
+      x: clamp(this.player.x + (dx / d) * 130, BOUNDS.x0 + 10, BOUNDS.x1 - 10),
+      y: clamp(this.player.y + (dy / d) * 130, BOUNDS.y0 + 10, BOUNDS.y1 - 10),
+    };
+  }
+
+  // Throw one coin at (lx, ly): the landing spot, the sound, and the
+  // guards/dogs that come to investigate it. Shared by Q and the mouse
+  // click, so both throws behave identically. Returns false with no coins.
+  throwCoinAt(lx, ly) {
+    if (this.coins <= 0) return false;
+    this.coins--;
+    this.thrownCoins.push({ x: lx, y: ly });
+    AudioSys.coin();
+    for (const g of this.guards) {
+      if (g.state === 'patrol' && dist(g.x, g.y, lx, ly) < 300) { g.state = 'investigate'; g.target = { x: lx, y: ly }; }
+    }
+    for (const d of this.dogs) {
+      if (d.state === 'patrol' && dist(d.x, d.y, lx, ly) < 300) { d.state = 'chase'; d.target = { x: lx, y: ly }; d.lostT = 0; }
+    }
+    return true;
+  }
+
+  // Camera status light (iteration 15): 'green' = powered and watching,
+  // 'red' = it has spotted the player, 'off' = blacked out by the
+  // terminal (3s). The renderer colours the LED from this.
+  cameraLed(cam) {
+    if (this.camerasOff > 0) return 'off';
+    return cam.seen ? 'red' : 'green';
+  }
 
   // Raise the alarm and remember which source raised it the most this
   // frame, so the caught screen can name who spotted the player. `source`
@@ -276,6 +329,9 @@ class Game {
     if (this.camerasOff > 0) this.camerasOff -= dt;
     for (const c of this.smokeClouds) c.t -= dt;
     this.smokeClouds = this.smokeClouds.filter((c) => c.t > 0);
+    // Mouse aim refreshes every frame while playing (null when the mouse
+    // has never been over the canvas, or no coins are left to throw).
+    this.aim = this.coins > 0 ? this.mouseAimPoint() : null;
 
     // --- 0. gallery art check (room 0 only) ---
     // Stealing the portrait starts a 3-second countdown. When it runs out,
@@ -524,17 +580,19 @@ class Game {
     }
 
     // --- 7. throwables ---
+    // Q throws 130px in the facing direction (unchanged). A left click
+    // throws at the mouse-aim marker instead — same 130px distance, same
+    // landing behaviour — and the player turns toward the throw.
     if (Keys.hit('KeyQ') && this.coins > 0) {
-      this.coins--;
       const lx = clamp(p.x + Math.cos(p.facing) * 130, BOUNDS.x0 + 10, BOUNDS.x1 - 10);
       const ly = clamp(p.y + Math.sin(p.facing) * 130, BOUNDS.y0 + 10, BOUNDS.y1 - 10);
-      this.thrownCoins.push({ x: lx, y: ly });
-      AudioSys.coin();
-      for (const g of this.guards) {
-        if (g.state === 'patrol' && dist(g.x, g.y, lx, ly) < 300) { g.state = 'investigate'; g.target = { x: lx, y: ly }; }
-      }
-      for (const d of this.dogs) {
-        if (d.state === 'patrol' && dist(d.x, d.y, lx, ly) < 300) { d.state = 'chase'; d.target = { x: lx, y: ly }; d.lostT = 0; }
+      this.throwCoinAt(lx, ly);
+    }
+    if (Mouse.clicked && this.coins > 0) {
+      const aim = this.mouseAimPoint();
+      if (aim) {
+        this.player.facing = Math.atan2(aim.y - p.y, aim.x - p.x);
+        this.throwCoinAt(aim.x, aim.y);
       }
     }
     if (Keys.hit('KeyF') && this.smokes > 0) {
@@ -799,12 +857,14 @@ class Game {
       hasKeycard: this.hasKeycard, targetTaken: this.targetTaken, hidden: this.hidden,
       door: Math.round(this.door.open * 100) / 100, doorBusy: this.door.busy,
       crack: Math.round(this.crack * 100) / 100, coins: this.coins, smokes: this.smokes,
+      thrown: this.thrownCoins.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y) })),
+      aim: this.aim ? { x: Math.round(this.aim.x), y: Math.round(this.aim.y) } : null,
       camerasOff: Math.round(this.camerasOff * 10) / 10,
       lootLeft: this.loot.filter((l) => !l.taken).length,
       guards: this.guards.map((g) => ({ x: Math.round(g.x), y: Math.round(g.y), state: g.state })),
       dogs: this.dogs.map((d) => ({ x: Math.round(d.x), y: Math.round(d.y), state: d.state, name: d.name })),
       sentries: this.sentries.map((s) => ({ angle: Math.round(s.angle * 100) / 100, seen: s.seen })),
-      cameras: this.cameras.map((c) => ({ angle: Math.round(c.angle * 100) / 100, seen: c.seen })),
+      cameras: this.cameras.map((c) => ({ angle: Math.round(c.angle * 100) / 100, seen: c.seen, led: this.cameraLed(c) })),
       lasers: L.lasers.map((l) => ({ on: this.laserOn(l) })),
       artCheckT: Math.round(this.artCheckT * 10) / 10,
       artCheckActive: this.artCheckActive,

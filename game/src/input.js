@@ -1,3 +1,36 @@
+// Mouse aim (iteration 15): track the cursor over the canvas in canvas
+// pixels, and edge-triggered left clicks. The listener lives on the
+// canvas itself, so clicks on the dev preview panel (DOM above the
+// canvas) never reach it. endFrame() clears the click edge each frame.
+const Mouse = {
+  x: -1, y: -1, // canvas-space position, -1 until the mouse has been over it
+  over: false,
+  clicked: false,
+
+  init(canvas) {
+    const toCanvas = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - r.left) * (canvas.width / r.width),
+        y: (e.clientY - r.top) * (canvas.height / r.height),
+      };
+    };
+    canvas.addEventListener('mousemove', (e) => {
+      const p = toCanvas(e);
+      this.x = p.x; this.y = p.y; this.over = true;
+    });
+    canvas.addEventListener('mouseleave', () => { this.over = false; });
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const p = toCanvas(e);
+      this.x = p.x; this.y = p.y; this.over = true;
+      this.clicked = true;
+    });
+  },
+
+  endFrame() { this.clicked = false; },
+};
+
 // Keyboard input. Tracks held keys and edge-triggered presses.
 const Keys = {
   held: {},
