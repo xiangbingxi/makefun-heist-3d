@@ -19,8 +19,11 @@ const LEVELS = [
     accent: '#d8a94e', accent2: '#8a6d2f',
     wallTop: '#2b3049', wallSide: '#1d2136', wallFront: '#12141f',
     playerStart: { x: 120, y: 620 },
-    target: { kind: 'portrait', x: 1150, y: 300, reach: 60, seconds: 1.6, label: 'SUNSET PORTRAIT', points: 500 },
-    exit: { x: 1176, y: 84, w: 76, h: 40, label: 'EXIT' },
+    target: { kind: 'portrait', x: 1216, y: 300, reach: 60, seconds: 1.6, label: 'SUNSET PORTRAIT', points: 500 },
+    // Exit is a door set into the east wall (plane E, x=1216), clear of the
+    // Sunset Portrait (y 262-338) and the gallery camera. Walk up to the
+    // door to leave. kind/plane/fixed/u1/u2/hgt tell render.js how to draw it.
+    exit: { x: 1150, y: 100, w: 66, h: 80, label: 'EXIT', kind: 'door', plane: 'E', fixed: 1216, u1: 100, u2: 180, hgt: 44 },
     keycard: null,
     loot: [
       { x: 300, y: 200, kind: 'coin' }, { x: 520, y: 540, kind: 'ring' }, { x: 920, y: 620, kind: 'coin' },
@@ -34,9 +37,12 @@ const LEVELS = [
     sentries: [{ x: 200, y: 120, base: 0.6, sweep: 0.9 }],
     dogs: [{ x1: 620, y1: 500, x2: 860, y2: 500, name: 'Rex' }],
     cameras: [{ x: 640, y: 70 }],
-    terminal: { x: 480, y: 160 },
+    terminal: { x: 480, y: 62 },
     lasers: [{ axis: 'h', at: 460, from: 520, to: 760, period: 3, on: 1.6 }],
     shadows: [{ x: 280, y: 280, w: 200, h: 120 }, { x: 840, y: 100, w: 220, h: 100 }],
+    // Wardrobe hiding spot: press E nearby to slip inside; watchers can't
+    // see you and the alarm drains twice as fast. Move or press E to come out.
+    hides: [{ x: 150, y: 460, w: 70, h: 50 }],
     walls: [
       { x: 560, y: 380, w: 24, h: 140 },
       { x: 880, y: 380, w: 24, h: 140 },
@@ -45,11 +51,12 @@ const LEVELS = [
       { kind: 'case', x: 400, y: 360, w: 90, d: 44, h: 34, solid: true, color: '#3a4a6b' },
       { kind: 'case', x: 820, y: 220, w: 90, d: 44, h: 34, solid: true, color: '#3a4a6b' },
       { kind: 'rug', x: 560, y: 300, w: 220, d: 120, color: '#5a1f2b' },
-      { kind: 'painting', x: 300, y: 62, w: 90, d: 10, h: 54, color: '#c98f2e' },
-      { kind: 'painting', x: 900, y: 62, w: 90, d: 10, h: 54, color: '#2e7f8f' },
+      { kind: 'painting', x: 300, y: 62, w: 90, d: 10, h: 40, color: '#c98f2e', scene: 'dunes' },
+      { kind: 'painting', x: 900, y: 62, w: 90, d: 10, h: 40, color: '#2e7f8f', scene: 'sea' },
       { kind: 'plant', x: 120, y: 120, w: 34, d: 34, h: 40, color: '#2f6b3a' },
       { kind: 'plant', x: 1180, y: 600, w: 34, d: 34, h: 40, color: '#2f6b3a' },
       { kind: 'chandelier', x: 640, y: 200, w: 60, d: 60, h: 18, color: '#d8a94e' },
+      { kind: 'wardrobe', x: 145, y: 450, w: 80, d: 60, h: 64, solid: true, color: '#4a3220' },
       { kind: 'lamp', x: 1100, y: 140, w: 24, d: 24, h: 48, color: '#d8a94e' },
       { kind: 'lamp', x: 180, y: 580, w: 24, d: 24, h: 48, color: '#d8a94e' },
     ],
@@ -63,7 +70,9 @@ const LEVELS = [
     wallTop: '#24382c', wallSide: '#182619', wallFront: '#0d130e',
     playerStart: { x: 120, y: 620 },
     target: { kind: 'diamond', x: 990, y: 360, reach: 60, seconds: 2.6, label: 'VELVET DIAMOND', points: 500, locked: true },
-    exit: { x: 84, y: 84, w: 76, h: 40, label: 'EXIT' },
+    // Exit is a door set into the north wall (plane N, y=62), clear of both
+    // cameras (300/700) and the terminal panel (450-550).
+    exit: { x: 80, y: 62, w: 80, h: 60, label: 'EXIT', kind: 'door', plane: 'N', fixed: 62, u1: 80, u2: 160, hgt: 44 },
     keycard: { x: 820, y: 360 },
     loot: [
       { x: 200, y: 200, kind: 'coin' }, { x: 350, y: 600, kind: 'coin' }, { x: 600, y: 200, kind: 'ring' }, { x: 850, y: 600, kind: 'coin' }, { x: 1100, y: 200, kind: 'coin' },
@@ -77,9 +86,10 @@ const LEVELS = [
     sentries: [{ x: 640, y: 120, base: Math.PI / 2, sweep: 0.9 }],
     dogs: [{ x1: 350, y1: 480, x2: 600, y2: 480, name: 'Bella' }],
     cameras: [{ x: 300, y: 70 }, { x: 700, y: 70 }],
-    terminal: { x: 500, y: 150 },
-    lasers: [{ axis: 'v', at: 970, from: 280, to: 440, period: 3, on: 1.8 }],
+    terminal: { x: 500, y: 62 },
+    lasers: [{ axis: 'v', at: 970, from: 280, to: 440, period: 2.8, on: 1.9 }],
     shadows: [{ x: 150, y: 300, w: 180, h: 120 }, { x: 900, y: 500, w: 200, h: 110 }],
+    hides: [{ x: 150, y: 420, w: 70, h: 50 }],
     walls: [
       { x: 420, y: 560, w: 24, h: 90 },
       { x: 1050, y: 420, w: 24, h: 140 },
@@ -93,6 +103,7 @@ const LEVELS = [
       { kind: 'plant', x: 1180, y: 120, w: 34, d: 34, h: 40, color: '#2f6b3a' },
       { kind: 'plant', x: 120, y: 600, w: 34, d: 34, h: 40, color: '#2f6b3a' },
       { kind: 'lamp', x: 140, y: 200, w: 24, d: 24, h: 48, color: '#c9a227' },
+      { kind: 'wardrobe', x: 145, y: 410, w: 80, d: 60, h: 64, solid: true, color: '#3d2f1e' },
       { kind: 'lamp', x: 1120, y: 580, w: 24, d: 24, h: 48, color: '#c9a227' },
     ],
   },
@@ -105,7 +116,14 @@ const LEVELS = [
     wallTop: '#3a2233', wallSide: '#281724', wallFront: '#170e14',
     playerStart: { x: 120, y: 620 },
     target: { kind: 'crown', x: 640, y: 440, reach: 70, seconds: 2.2, label: 'THE CROWN', points: 500 },
-    exit: { x: 604, y: 60, w: 76, h: 40, label: 'SKYLIGHT' },
+    // Exit is a skylight in the north wall; the stairs are gone
+    // (iteration 14 — the user asked for them to be deleted after two
+    // clipping reports). The opening sits in the free gap between the dusk
+    // painting (500-590) and the terminal panel (710-810). The trigger is
+    // the floor spot directly beneath the skylight, where the stairs'
+    // base was: walking into it (x 610-686, y 100-192) after stealing
+    // the crown completes the level. No climbing, no steps.
+    exit: { x: 610, y: 100, w: 76, h: 92, label: 'SKYLIGHT', kind: 'skylight', plane: 'N', fixed: 62, u1: 610, u2: 686, hgt: 46 },
     keycard: null,
     loot: [
       { x: 180, y: 180, kind: 'coin' }, { x: 400, y: 620, kind: 'coin' }, { x: 760, y: 180, kind: 'ring' }, { x: 1080, y: 300, kind: 'coin' }, { x: 1080, y: 620, kind: 'coin' },
@@ -119,23 +137,36 @@ const LEVELS = [
     sentries: [{ x: 120, y: 660, base: -0.3, sweep: 0.9 }],
     dogs: [{ x1: 500, y1: 600, x2: 800, y2: 600, name: 'Duke' }],
     cameras: [{ x: 320, y: 70 }, { x: 960, y: 70 }],
-    terminal: { x: 640, y: 150 },
-    lasers: [{ axis: 'h', at: 300, from: 480, to: 800, period: 2.6, on: 1.4 }],
+    terminal: { x: 760, y: 62 },
+    lasers: [{ axis: 'h', at: 300, from: 480, to: 800, period: 2.4, on: 1.5 }],
     shadows: [{ x: 200, y: 420, w: 200, h: 110 }, { x: 850, y: 120, w: 200, h: 100 }],
+    hides: [{ x: 120, y: 480, w: 70, h: 50 }],
     walls: [
       { x: 420, y: 400, w: 24, h: 100 },
       { x: 900, y: 400, w: 24, h: 100 },
     ],
     props: [
-      { kind: 'bed', x: 1020, y: 120, w: 140, d: 70, h: 30, solid: true, color: '#7a2f4a' },
+      // Bed flush against the north wall (iteration 14): its long edge
+      // sits on the wall line y=60, in the free stretch between the
+      // north-wall camera (320) and the dusk painting (500). The south
+      // wall is not an option — guard 2's whole south patrol leg runs
+      // along y=640 there, and the bed would sit on it.
+      { kind: 'bed', x: 350, y: 60, w: 140, d: 70, h: 30, solid: true, color: '#7a2f4a' },
       { kind: 'sofa', x: 300, y: 420, w: 120, d: 50, h: 26, solid: true, color: '#4a2f5e' },
       { kind: 'bar', x: 180, y: 120, w: 90, d: 40, h: 34, solid: true, color: '#5e3a1f' },
       { kind: 'rug', x: 480, y: 420, w: 220, d: 110, color: '#4a1f2b' },
-      { kind: 'painting', x: 500, y: 62, w: 90, d: 10, h: 54, color: '#d98a7a' },
+      { kind: 'painting', x: 500, y: 62, w: 90, d: 10, h: 40, color: '#d98a7a', scene: 'dusk' },
       { kind: 'plant', x: 1180, y: 600, w: 34, d: 34, h: 40, color: '#2f6b3a' },
       { kind: 'plant', x: 120, y: 120, w: 34, d: 34, h: 40, color: '#2f6b3a' },
       { kind: 'lamp', x: 180, y: 300, w: 24, d: 24, h: 48, color: '#d98a7a' },
+      { kind: 'wardrobe', x: 115, y: 470, w: 80, d: 60, h: 64, solid: true, color: '#4a2f3a' },
       { kind: 'lamp', x: 1120, y: 480, w: 24, d: 24, h: 48, color: '#d98a7a' },
+      // Wall-mounted flat TV on the north wall (no footprint, no collision),
+      // in the free stretch between the terminal panel (710-810) and the
+      // camera (960). Desk in the open south-west floor, clear of every
+      // patrol line and loot point, so it is a real obstacle to walk around.
+      { kind: 'tv', x: 830, y: 62, w: 100, d: 10, h: 36, color: '#0d1117' },
+      { kind: 'desk', x: 240, y: 520, w: 110, d: 55, h: 30, solid: true, color: '#5e3a1f' },
     ],
   },
 ];
@@ -147,11 +178,11 @@ const LOOT_LABEL = { coin: 'COIN', gem: 'GEM', antique: 'ANTIQUE', watch: 'WATCH
 // Tunables (same balance as the 2D version).
 const TUNE = {
   playerWalk: 175, playerSneak: 98, playerRadius: 14,
-  guardPatrol: 70, guardSearch: 118, guardVision: 260, guardFov: 0.61, guardHearing: 200,
+  guardPatrol: 70, guardSearch: 132, guardVision: 260, guardFov: 0.61, guardHearing: 200,
   dogPatrol: 130, dogChase: 230, dogVision: 170, dogFov: 0.75, dogHearing: 320,
   sentryVision: 300, sentryFov: 0.75,
   cameraVision: 300, cameraFov: 0.5,
   alarmRate: 70, alarmDecay: 26, laserRate: 60, dogPounce: 40,
-  searchDwell: 2.2, chaseMemory: 2.0, cameraOffTime: 12, smokeTime: 5,
+  searchDwell: 2.2, chaseMemory: 2.0, cameraOffTime: 3, smokeTime: 5,
   coins: 3, smokes: 2,
 };
